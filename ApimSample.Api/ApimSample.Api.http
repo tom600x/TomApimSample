@@ -1,0 +1,6 @@
+@ApimSample.Api_HostAddress = http://localhost:5191
+
+GET {{ApimSample.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

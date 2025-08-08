@@ -1,0 +1,123 @@
+@model ApimSample.MvcClient.Models.WeatherForecastViewModel
+
+@{
+    ViewData["Title"] = $"{Model.ApiSource} Weather Forecast";
+    var colorClass = Model.ApiSource == "DirectAuth" ? "primary" : "success";
+    var apiTypeName = Model.ApiSource == "DirectAuth" ? "Direct OAuth Authentication" : "APIM OAuth Authentication";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item active">@apiTypeName</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card border-@colorClass mb-4">
+        <div class="card-header bg-@colorClass text-white">
+            <h2 class="mb-0">@apiTypeName Results</h2>
+        </div>
+        <div class="card-body">
+            @if (Model.Success)
+            {
+                <h3 class="mb-4">Weather Forecast</h3>
+
+                @if (Model.Forecasts.Any())
+                {
+                    <table class="table table-striped table-bordered">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>Date</th>
+                                <th>Temperature (C)</th>
+                                <th>Temperature (F)</th>
+                                <th>Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var forecast in Model.Forecasts)
+                            {
+                                <tr>
+                                    <td>@forecast.Date.ToString("yyyy-MM-dd")</td>
+                                    <td>@forecast.TemperatureC</td>
+                                    <td>@forecast.TemperatureF</td>
+                                    <td>@forecast.Summary</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div class="alert alert-warning">
+                        <p>No forecast data available.</p>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-danger">
+                    <h4>Error Fetching Data</h4>
+                    <p>@Model.ErrorMessage</p>
+                    <hr />
+                    <h5>Possible causes:</h5>
+                    <ul>
+                        <li>The API is not accessible</li>
+                        <li>The API Management subscription key is invalid</li>
+                        @if (Model.ApiSource == "DirectAuth")
+                        {
+                            <li>The OAuth token is missing or invalid</li>
+                            <li>The API is not properly configured with JWT Bearer authentication</li>
+                        }
+                        else
+                        {
+                            <li>The OAuth policy in API Management is not correctly configured</li>
+                            <li>The token is rejected by API Management</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+        <div class="card-footer">
+            <a asp-action="Index" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3 class="mb-0">How this works</h3>
+        </div>
+        <div class="card-body">
+            @if (Model.ApiSource == "DirectAuth")
+            {
+                <h4>Direct OAuth Authentication Flow:</h4>
+                <ol>
+                    <li>The client sends a request with OAuth token to API Management</li>
+                    <li>API Management forwards the token to the API</li>
+                    <li>The API validates the token using ASP.NET Core Authentication</li>
+                    <li>If the token is valid, the API processes the request</li>
+                </ol>
+                <div class="alert alert-info">
+                    <strong>Key benefit:</strong> The API remains secure even if API Management is bypassed
+                </div>
+            }
+            else
+            {
+                <h4>APIM OAuth Authentication Flow:</h4>
+                <ol>
+                    <li>The client sends a request with OAuth token to API Management</li>
+                    <li>API Management validates the token using OAuth policy</li>
+                    <li>If valid, API Management forwards the request to the API</li>
+                    <li>The API (with no authentication) processes the request</li>
+                </ol>
+                <div class="alert alert-info">
+                    <strong>Key benefit:</strong> Simplified API code with centralized security in API Management
+                </div>
+            }
+        </div>
+    </div>
+</div>
