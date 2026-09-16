@@ -75,4 +75,5 @@ ApimSample.Api/Properties/PublishProfiles/
 ApimSample.MvcClient/Properties/PublishProfiles/
 ApimSample.ApimSecuredApi/Properties/PublishProfiles/
 ApimSample.MvcClient/appsettings.Development.json
+bruno/ApimSample/environments/*.bru
 /ApimSample.Api/publish
