@@ -1,0 +1,25 @@
+<!--
+  Standalone snippet: authentication-managed-identity policy.
+  Place inside <inbound><base/> ... </inbound> AFTER validate-azure-ad-token, so APIM re-authenticates
+  to the backend using ITS OWN system-assigned managed identity rather than forwarding the caller's token.
+  This lets the backend API (behind a Private Endpoint, public access disabled) trust only APIM.
+-->
+<authentication-managed-identity
+    resource="api://1efe159c-bcc2-4797-8d33-84fb2ad8c069"
+    output-token-variable-name="apim-backend-token"
+    ignore-error="false" />
+<set-header name="Authorization" exists-action="override">
+  <value>@("Bearer " + (string)context.Variables["apim-backend-token"])</value>
+</set-header>
+
+<!--
+  Prerequisite (one-time setup, not part of the policy):
+  Grant APIM's system-assigned managed identity the Api.Access APPLICATION app role on ApimSample.Api:
+
+  $apimMiObjectId = (Get-AzApiManagement -ResourceGroupName <rg> -Name tomapim).Identity.PrincipalId
+  $apiSp          = Get-MgServicePrincipal -Filter "appId eq '1efe159c-bcc2-4797-8d33-84fb2ad8c069'"
+  $appRole        = $apiSp.AppRoles | Where-Object { $_.Value -eq 'Api.Access' }
+
+  New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $apimMiObjectId `
+      -PrincipalId $apimMiObjectId -ResourceId $apiSp.Id -AppRoleId $appRole.Id
+-->

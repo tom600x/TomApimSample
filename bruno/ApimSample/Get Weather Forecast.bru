@@ -1,0 +1,17 @@
+meta {
+  name: Get Weather Forecast
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{apimBaseUrl}}/{{apiPath}}/{{weatherPath}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+  Accept: application/json
+}

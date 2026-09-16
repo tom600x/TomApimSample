@@ -1,5 +1,7 @@
 using System.Text.Json;
 using ApimSample.MvcClient.Models;
+using ApimSample.MvcClient.Options;
+using Microsoft.Extensions.Options;
 
 namespace ApimSample.MvcClient.Services;
 
@@ -11,15 +13,18 @@ public interface IWeatherService
 public class WeatherService : IWeatherService
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
+    private readonly ApiSettingsOptions _apiSettings;
     private readonly ILogger<WeatherService> _logger;
     private readonly ITokenService _tokenService;
 
-    public WeatherService(IHttpClientFactory httpClientFactory, IConfiguration configuration, 
-        ILogger<WeatherService> logger, ITokenService tokenService)
+    public WeatherService(
+        IHttpClientFactory httpClientFactory,
+        IOptions<ApiSettingsOptions> apiSettings,
+        ILogger<WeatherService> logger,
+        ITokenService tokenService)
     {
         _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
+        _apiSettings = apiSettings.Value;
         _logger = logger;
         _tokenService = tokenService;
     }
@@ -27,86 +32,90 @@ public class WeatherService : IWeatherService
     public async Task<WeatherForecastViewModel> GetWeatherForecastAsync(string apiSource)
     {
         var viewModel = new WeatherForecastViewModel { ApiSource = apiSource };
-        
+
+        if (!_apiSettings.Endpoints.TryGetValue(apiSource, out var endpoint))
+        {
+            viewModel.Success = false;
+            viewModel.ErrorMessage = $"No endpoint is configured for '{apiSource}' under ApiSettings:Endpoints.";
+            return viewModel;
+        }
+
+        viewModel.DisplayName = endpoint.DisplayName;
+        viewModel.SecurityModel = endpoint.SecurityModel;
+
+        // ApimSample.ApimSecuredApi exists in the solution but has not been published to Azure yet,
+        // so surface a clear message instead of failing with a confusing error from the gateway.
+        if (!endpoint.Deployed || string.IsNullOrWhiteSpace(endpoint.Path))
+        {
+            viewModel.Success = false;
+            viewModel.NotDeployed = true;
+            viewModel.ErrorMessage =
+                $"'{endpoint.DisplayName}' is not deployed to Azure yet, so there is nothing to call through " +
+                "API Management. Publish the project to an App Service, import it into APIM, then set " +
+                $"ApiSettings:Endpoints:{apiSource}:Path and Deployed=true.";
+            return viewModel;
+        }
+
         try
         {
             var client = _httpClientFactory.CreateClient("ApiClient");
-            
-            // Add APIM subscription key to header (required for both flows)
-            client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", _configuration["ApiSettings:ApiKey"]);
-            
-            // Set the endpoint based on which API we're targeting through APIM
-            string endpoint;
-            
-            if (apiSource == ApiSource.DirectAuth)
+
+            // APIM requires a subscription key on every call, in addition to the OAuth token.
+            if (!string.IsNullOrWhiteSpace(_apiSettings.SubscriptionKey))
             {
-                // DirectAuth: APIM passes OAuth token to API, API validates it
-                endpoint = "/direct-auth-api/weatherforecast";
-                
-                // Get OAuth token for the API backend
-                var accessToken = await _tokenService.GetAccessTokenAsync();
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    _logger.LogError("Failed to acquire OAuth token for DirectAuth flow");
-                    viewModel.Success = false;
-                    viewModel.ErrorMessage = "Authentication failed: Could not acquire access token";
-                    return viewModel;
-                }
-                
-                // Add the bearer token - APIM will pass this through to the API
-                client.DefaultRequestHeaders.Authorization = 
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                
-                _logger.LogInformation("Added Bearer token for DirectAuth flow (API validates token)");
+                client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", _apiSettings.SubscriptionKey);
             }
-            else // ApiSource.ApimAuth
+            else
             {
-                // ApimAuth: APIM validates OAuth token, then forwards to API without auth
-                endpoint = "/apim-secured-api/weatherforecast";
-                
-                // Get OAuth token for APIM validation
-                var accessToken = await _tokenService.GetAccessTokenAsync();
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    _logger.LogError("Failed to acquire OAuth token for ApimAuth flow");
-                    viewModel.Success = false;
-                    viewModel.ErrorMessage = "Authentication failed: Could not acquire access token";
-                    return viewModel;
-                }
-                
-                // Add the bearer token - APIM will validate this token
-                client.DefaultRequestHeaders.Authorization = 
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                
-                _logger.LogInformation("Added Bearer token for ApimAuth flow (APIM validates token)");
+                _logger.LogWarning("ApiSettings:SubscriptionKey is not configured; APIM will reject the call with 401.");
             }
-            
-            _logger.LogInformation("Calling API endpoint: {Endpoint} for source: {ApiSource}", endpoint, apiSource);
-            
-            var response = await client.GetAsync(endpoint);
-            
+
+            // Acquire an app-only token for ApimSample.Api. APIM validates this token
+            // (issuer, tenant, audience and the Api.Access app role) before it forwards the request,
+            // and then re-authenticates to the backend using its own managed identity.
+            var accessToken = await _tokenService.GetAccessTokenAsync();
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                _logger.LogError("Failed to acquire an OAuth token for {ApiSource}", apiSource);
+                viewModel.Success = false;
+                viewModel.ErrorMessage = "Authentication failed: could not acquire an access token. Check the AzureAd settings and the client secret.";
+                return viewModel;
+            }
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            _logger.LogInformation("Calling {Path} through APIM for {ApiSource}", endpoint.Path, apiSource);
+
+            var response = await client.GetAsync(endpoint.Path);
+
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var weatherData = JsonSerializer.Deserialize<IEnumerable<WeatherForecast>>(content, options);
-                viewModel.Forecasts = weatherData ?? Enumerable.Empty<WeatherForecast>();
+                viewModel.Forecasts = JsonSerializer.Deserialize<IEnumerable<WeatherForecast>>(content, options)
+                                      ?? Enumerable.Empty<WeatherForecast>();
                 viewModel.Success = true;
-                
+
                 _logger.LogInformation("Successfully retrieved weather data from {ApiSource}", apiSource);
             }
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("API request to {ApiSource} failed with status code {StatusCode}. Response: {ErrorContent}", 
+                _logger.LogError("API request to {ApiSource} failed with {StatusCode}. Response: {ErrorContent}",
                     apiSource, response.StatusCode, errorContent);
+
                 viewModel.Success = false;
                 viewModel.ErrorMessage = $"API returned status code: {(int)response.StatusCode} - {response.StatusCode}";
-                
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+
+                viewModel.ErrorMessage += response.StatusCode switch
                 {
-                    viewModel.ErrorMessage += " - Authentication failed. Please check your OAuth configuration.";
-                }
+                    System.Net.HttpStatusCode.Unauthorized =>
+                        " - APIM rejected the token or the subscription key. Verify ApiSettings:SubscriptionKey and that the token audience is the ApimSample.Api Application ID URI.",
+                    System.Net.HttpStatusCode.Forbidden =>
+                        " - The token was valid but lacked the 'Api.Access' app role, or the backend did not trust the caller. Confirm the Api.Access app role assignment for ApimSample.Swagger.",
+                    _ => string.Empty
+                };
             }
         }
         catch (Exception ex)
@@ -115,7 +124,7 @@ public class WeatherService : IWeatherService
             viewModel.Success = false;
             viewModel.ErrorMessage = $"Error: {ex.Message}";
         }
-        
+
         return viewModel;
     }
 }

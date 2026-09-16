@@ -1,6 +1,7 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ApimSample.MvcClient.Options;
+using Microsoft.Extensions.Options;
 
 namespace ApimSample.MvcClient.Services;
 
@@ -9,20 +10,22 @@ public interface ITokenService
     Task<string?> GetAccessTokenAsync();
 }
 
-public class TokenService : ITokenService
+public class TokenService : ITokenService, IDisposable
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
+    private readonly AzureAdClientOptions _azureAd;
     private readonly ILogger<TokenService> _logger;
     private readonly SemaphoreSlim _tokenSemaphore = new(1, 1);
-    
+
+    // Registered as a singleton so the token is cached across requests. The token represents the
+    // application identity (client credentials), not a signed-in user, so sharing it is correct.
     private string? _cachedToken;
     private DateTime _tokenExpiry = DateTime.MinValue;
 
-    public TokenService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<TokenService> logger)
+    public TokenService(IHttpClientFactory httpClientFactory, IOptions<AzureAdClientOptions> azureAd, ILogger<TokenService> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
+        _azureAd = azureAd.Value;
         _logger = logger;
     }
 
@@ -55,33 +58,32 @@ public class TokenService : ITokenService
     {
         try
         {
-            var tenantId = _configuration["AzureAd:TenantId"];
-            var clientId = _configuration["AzureAd:ClientId"];
-            var clientSecret = _configuration["AzureAd:ClientSecret"];
-            var scope = _configuration["AzureAd:Scope"];
-
-            if (string.IsNullOrEmpty(tenantId) || string.IsNullOrEmpty(clientId) || 
-                string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(scope))
+            if (string.IsNullOrWhiteSpace(_azureAd.TenantId) || string.IsNullOrWhiteSpace(_azureAd.ClientId) ||
+                string.IsNullOrWhiteSpace(_azureAd.ClientSecret) || string.IsNullOrWhiteSpace(_azureAd.Scope))
             {
-                _logger.LogError("OAuth configuration is incomplete. Missing required AzureAd settings.");
+                _logger.LogError(
+                    "OAuth configuration is incomplete. Set AzureAd:TenantId, AzureAd:ClientId, AzureAd:ClientSecret " +
+                    "and AzureAd:Scope (store the secret with 'dotnet user-secrets set AzureAd:ClientSecret <value>').");
                 return null;
             }
 
             var client = _httpClientFactory.CreateClient("TokenClient");
-            var tokenEndpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
+            var tokenEndpoint = _azureAd.TokenEndpoint;
 
+            // Client credentials flow: Entra ID returns an app-only token whose 'roles' claim contains the
+            // App Roles assigned to this client's service principal (Api.Access).
             var requestBody = new List<KeyValuePair<string, string>>
             {
-                new("client_id", clientId),
-                new("client_secret", clientSecret),
-                new("scope", scope),
+                new("client_id", _azureAd.ClientId),
+                new("client_secret", _azureAd.ClientSecret),
+                new("scope", _azureAd.Scope),
                 new("grant_type", "client_credentials")
             };
 
             var content = new FormUrlEncodedContent(requestBody);
             
             _logger.LogInformation("Requesting OAuth token from {TokenEndpoint}", tokenEndpoint);
-            _logger.LogDebug("Token request - ClientId: {ClientId}, Scope: {Scope}", clientId, scope);
+            _logger.LogDebug("Token request - ClientId: {ClientId}, Scope: {Scope}", _azureAd.ClientId, _azureAd.Scope);
             
             var response = await client.PostAsync(tokenEndpoint, content);
             
@@ -121,7 +123,7 @@ public class TokenService : ITokenService
     {
         if (disposing)
         {
-            _tokenSemaphore?.Dispose();
+            _tokenSemaphore.Dispose();
         }
     }
 

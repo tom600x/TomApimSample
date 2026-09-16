@@ -5,44 +5,52 @@
 <div class="container">
     <div class="jumbotron bg-light p-5 rounded-3 my-4">
         <h1 class="display-4">API Management OAuth Samples</h1>
-        <p class="lead">This application demonstrates two approaches to handling OAuth 2.0 authentication with Azure API Management</p>
+        <p class="lead">This application calls APIs through Azure API Management using Microsoft Entra ID App Roles and the client credentials flow.</p>
         <hr class="my-4">
         <div class="row">
             <div class="col-md-6 mb-3">
                 <div class="card h-100">
                     <div class="card-header bg-primary text-white">
-                        <h5 class="card-title mb-0">Direct OAuth Authentication</h5>
+                        <h5 class="card-title mb-0">Zero-trust API (App Roles)</h5>
                     </div>
                     <div class="card-body">
-                        <p class="card-text">In this approach, the API itself validates OAuth tokens using ASP.NET Core authentication.</p>
+                        <p class="card-text">
+                            <code>ApimSample.Api</code> — API Management validates the Entra ID token, then
+                            re-authenticates to the backend with its own managed identity.
+                        </p>
                         <ul>
-                            <li>API has JWT Bearer authentication middleware</li>
-                            <li>API validates tokens directly</li>
-                            <li>API Management passes tokens through</li>
-                            <li>Added security if API Management is bypassed</li>
+                            <li>App Roles (<code>Api.Access</code>) instead of delegated scopes</li>
+                            <li>APIM validates issuer, tenant, audience, signature and role</li>
+                            <li>Backend trusts only the APIM managed identity</li>
+                            <li>Direct calls that bypass APIM are rejected with 403</li>
                         </ul>
+                        <span class="badge bg-success">Deployed to Azure</span>
                     </div>
                     <div class="card-footer">
-                        <a asp-action="DirectAuthApi" class="btn btn-primary">Test Direct OAuth API</a>
+                        <a asp-action="DirectAuthApi" class="btn btn-primary">Call through APIM</a>
                     </div>
                 </div>
             </div>
             <div class="col-md-6 mb-3">
                 <div class="card h-100">
                     <div class="card-header bg-success text-white">
-                        <h5 class="card-title mb-0">APIM OAuth Authentication</h5>
+                        <h5 class="card-title mb-0">APIM-only authentication</h5>
                     </div>
                     <div class="card-body">
-                        <p class="card-text">In this approach, API Management validates OAuth tokens using policies.</p>
+                        <p class="card-text">
+                            <code>ApimSample.ApimSecuredApi</code> — API Management performs all token
+                            validation and the backend contains no authentication code.
+                        </p>
                         <ul>
                             <li>API has no authentication code</li>
                             <li>API Management validates tokens</li>
                             <li>Centralized security management</li>
                             <li>Simplified API implementation</li>
                         </ul>
+                        <span class="badge bg-secondary">Not deployed to Azure yet</span>
                     </div>
                     <div class="card-footer">
-                        <a asp-action="ApimAuthApi" class="btn btn-success">Test APIM OAuth API</a>
+                        <a asp-action="ApimAuthApi" class="btn btn-success">Check status</a>
                     </div>
                 </div>
             </div>

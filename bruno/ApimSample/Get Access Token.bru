@@ -1,0 +1,31 @@
+meta {
+  name: Get Access Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://login.microsoftonline.com/{{tenantId}}/oauth2/v2.0/token
+  body: formUrlEncoded
+  auth: none
+}
+
+headers {
+  Content-Type: application/x-www-form-urlencoded
+  Accept: application/json
+}
+
+body:form-urlencoded {
+  client_id: {{clientId}}
+  client_secret: {{clientSecret}}
+  scope: {{apiScope}}
+  grant_type: client_credentials
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (!body.access_token) {
+	throw new Error('Token request did not return access_token: ' + JSON.stringify(body));
+  }
+  bru.setVar('accessToken', body.access_token);
+}

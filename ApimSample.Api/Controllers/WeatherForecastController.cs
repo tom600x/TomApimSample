@@ -6,7 +6,7 @@ namespace ApimSample.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize]  // This attribute requires authentication for all actions in this controller
+[Authorize(Policy = "ApiAccess")] // Requires the Api.Access app role and (in production) the APIM managed identity
 public class WeatherForecastController : ControllerBase
 {
     private static readonly string[] Summaries = new[]

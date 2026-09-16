@@ -1,0 +1,27 @@
+<!--
+  Standalone snippet: validate-azure-ad-token policy.
+  Place inside <inbound><base/> ... </inbound> of the APIM API or operation policy.
+  Validates: signature, issuer, tenant (via tenant-id), audience, and required app role claim.
+-->
+<validate-azure-ad-token
+    tenant-id="60b20c52-6462-4ab8-b261-32d173b5e51c"
+    header-name="Authorization"
+    failed-validation-httpcode="401"
+    failed-validation-error-message="Unauthorized: invalid, expired, or unauthorized Entra ID token.">
+  <!-- Client applications allowed to call this API through APIM -->
+  <client-application-ids>
+    <application-id>a3384a94-0145-4fb6-a5c6-634b2bba2397</application-id> <!-- ApimSample.Swagger -->
+  </client-application-ids>
+  <!-- Must match the backend API's audience (App Registration: ApimSample.Api).
+       v1 tokens use the Application ID URI, v2 tokens use the bare client id, so list both. -->
+  <audiences>
+    <audience>api://1efe159c-bcc2-4797-8d33-84fb2ad8c069</audience>
+    <audience>1efe159c-bcc2-4797-8d33-84fb2ad8c069</audience>
+  </audiences>
+  <!-- Enforce App Roles instead of scopes: caller must hold the Api.Access app role -->
+  <required-claims>
+    <claim name="roles" match="any">
+      <value>Api.Access</value>
+    </claim>
+  </required-claims>
+</validate-azure-ad-token>

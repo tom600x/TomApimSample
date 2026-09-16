@@ -1,9 +1,9 @@
 @model ApimSample.MvcClient.Models.WeatherForecastViewModel
 
 @{
-    ViewData["Title"] = $"{Model.ApiSource} Weather Forecast";
+    var apiTypeName = string.IsNullOrWhiteSpace(Model.DisplayName) ? Model.ApiSource : Model.DisplayName;
+    ViewData["Title"] = $"{apiTypeName} Weather Forecast";
     var colorClass = Model.ApiSource == "DirectAuth" ? "primary" : "success";
-    var apiTypeName = Model.ApiSource == "DirectAuth" ? "Direct OAuth Authentication" : "APIM OAuth Authentication";
 }
 
 <div class="container">
@@ -58,6 +58,18 @@
                     </div>
                 }
             }
+            else if (Model.NotDeployed)
+            {
+                <div class="alert alert-warning">
+                    <h4>Not deployed to Azure yet</h4>
+                    <p>@Model.ErrorMessage</p>
+                    <hr />
+                    <p class="mb-0">
+                        The <code>ApimSample.ApimSecuredApi</code> project exists in this solution but has not been
+                        published to an App Service or imported into API Management, so there is no endpoint to call.
+                    </p>
+                </div>
+            }
             else
             {
                 <div class="alert alert-danger">
@@ -66,12 +78,13 @@
                     <hr />
                     <h5>Possible causes:</h5>
                     <ul>
-                        <li>The API is not accessible</li>
-                        <li>The API Management subscription key is invalid</li>
+                        <li>The APIM subscription key (<code>ApiSettings:SubscriptionKey</code>) is missing or invalid</li>
+                        <li>The client secret (<code>AzureAd:ClientSecret</code>) is missing or expired</li>
                         @if (Model.ApiSource == "DirectAuth")
                         {
-                            <li>The OAuth token is missing or invalid</li>
-                            <li>The API is not properly configured with JWT Bearer authentication</li>
+                            <li>The <code>Api.Access</code> app role is not assigned to <code>ApimSample.Swagger</code></li>
+                            <li>The token audience does not match the <code>ApimSample.Api</code> Application ID URI</li>
+                            <li>The backend does not trust the APIM managed identity object ID</li>
                         }
                         else
                         {
@@ -92,30 +105,35 @@
             <h3 class="mb-0">How this works</h3>
         </div>
         <div class="card-body">
+            @if (!string.IsNullOrWhiteSpace(Model.SecurityModel))
+            {
+                <p class="text-muted">@Model.SecurityModel</p>
+            }
             @if (Model.ApiSource == "DirectAuth")
             {
-                <h4>Direct OAuth Authentication Flow:</h4>
+                <h4>Zero-trust flow (App Roles + managed identity):</h4>
                 <ol>
-                    <li>The client sends a request with OAuth token to API Management</li>
-                    <li>API Management forwards the token to the API</li>
-                    <li>The API validates the token using ASP.NET Core Authentication</li>
-                    <li>If the token is valid, the API processes the request</li>
+                    <li>This client acquires an app-only token from Microsoft Entra ID using the client credentials flow (<code>ApimSample.Swagger</code> → <code>api://&lt;ApimSample.Api&gt;/.default</code>)</li>
+                    <li>The token carries the <code>Api.Access</code> app role in its <code>roles</code> claim</li>
+                    <li>API Management validates the token's issuer, tenant, audience, signature and <code>Api.Access</code> role</li>
+                    <li>API Management discards the caller's token and acquires a new one using its own managed identity</li>
+                    <li>The backend validates that token and confirms the caller is API Management's managed identity</li>
                 </ol>
                 <div class="alert alert-info">
-                    <strong>Key benefit:</strong> The API remains secure even if API Management is bypassed
+                    <strong>Key benefit:</strong> the backend trusts only API Management, so calls that bypass the gateway are rejected with 403 even when they present a valid Entra ID token.
                 </div>
             }
             else
             {
-                <h4>APIM OAuth Authentication Flow:</h4>
+                <h4>APIM-only authentication flow:</h4>
                 <ol>
-                    <li>The client sends a request with OAuth token to API Management</li>
-                    <li>API Management validates the token using OAuth policy</li>
+                    <li>The client sends a request with an OAuth token to API Management</li>
+                    <li>API Management validates the token using an OAuth policy</li>
                     <li>If valid, API Management forwards the request to the API</li>
-                    <li>The API (with no authentication) processes the request</li>
+                    <li>The API (with no authentication code) processes the request</li>
                 </ol>
                 <div class="alert alert-info">
-                    <strong>Key benefit:</strong> Simplified API code with centralized security in API Management
+                    <strong>Key benefit:</strong> simplified API code with centralized security in API Management.
                 </div>
             }
         </div>

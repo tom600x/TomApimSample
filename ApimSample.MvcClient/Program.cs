@@ -1,3 +1,5 @@
+using ApimSample.MvcClient.Options;
+
 namespace ApimSample.MvcClient;
 
 public class Program
@@ -8,15 +10,30 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddControllersWithViews();
-        
-        // Register the weather service and token service
-        builder.Services.AddScoped<Services.IWeatherService, Services.WeatherService>();
-        builder.Services.AddScoped<Services.ITokenService, Services.TokenService>();
 
-        // Add HttpClient for API communication with OAuth token handling
+        // Strongly typed configuration.
+        builder.Services.AddOptions<ApiSettingsOptions>()
+            .Bind(builder.Configuration.GetSection(ApiSettingsOptions.SectionName))
+            .ValidateOnStart();
+        builder.Services.AddOptions<AzureAdClientOptions>()
+            .Bind(builder.Configuration.GetSection(AzureAdClientOptions.SectionName))
+            .ValidateOnStart();
+
+        builder.Services.AddScoped<Services.IWeatherService, Services.WeatherService>();
+
+        // Singleton so the acquired app-only token is cached and reused across requests.
+        builder.Services.AddSingleton<Services.ITokenService, Services.TokenService>();
+
+        var apimBaseUrl = builder.Configuration[$"{ApiSettingsOptions.SectionName}:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(apimBaseUrl))
+        {
+            throw new InvalidOperationException($"{ApiSettingsOptions.SectionName}:BaseUrl must be configured (the APIM gateway URL).");
+        }
+
+        // All API traffic goes through the API Management gateway - never directly to the backend App Service.
         builder.Services.AddHttpClient("ApiClient", client =>
         {
-            client.BaseAddress = new Uri(builder.Configuration["ApiSettings:BaseUrl"] ?? "https://tomoapim.azure-api.net");
+            client.BaseAddress = new Uri(apimBaseUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
         });
 

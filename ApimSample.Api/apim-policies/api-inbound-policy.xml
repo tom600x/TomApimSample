@@ -1,0 +1,57 @@
+<!--
+  Sample inbound policy for the ApimSample.Api operation(s)/API in APIM 'tomapim'.
+
+  Purpose:
+    1. validate-azure-ad-token: Validates the developer/client OAuth token presented to APIM
+       (issuer, audience, tenant, signature, and required app role claim).
+    2. authentication-managed-identity: Replaces the caller's Authorization header with a fresh
+       OAuth token acquired using APIM's own system-assigned managed identity, scoped to the
+       backend API's Application ID URI. This is what the backend (ApimSample.Api / ASP.NET Core
+       API behind the Private Endpoint) actually validates: it trusts only APIM's identity.
+
+  Placeholders to replace before deploying:
+    {tenant-id}                -> 60b20c52-6462-4ab8-b261-32d173b5e51c
+    {api-client-id}            -> 1efe159c-bcc2-4797-8d33-84fb2ad8c069 (ApimSample.Api app registration)
+    {api-app-id-uri}           -> api://1efe159c-bcc2-4797-8d33-84fb2ad8c069
+-->
+<policies>
+  <inbound>
+    <base />
+
+    <!-- 1. Validate the developer's Entra ID token before allowing the call into APIM. -->
+    <validate-azure-ad-token tenant-id="{tenant-id}" header-name="Authorization" failed-validation-httpcode="401"
+        failed-validation-error-message="Unauthorized: invalid or missing Entra ID token.">
+      <client-application-ids>
+        <application-id>a3384a94-0145-4fb6-a5c6-634b2bba2397</application-id> <!-- ApimSample.Swagger -->
+      </client-application-ids>
+      <audiences>
+        <!-- v1 tokens carry the Application ID URI, v2 tokens carry the bare client id. Accept both. -->
+        <audience>api://1efe159c-bcc2-4797-8d33-84fb2ad8c069</audience>
+        <audience>1efe159c-bcc2-4797-8d33-84fb2ad8c069</audience>
+      </audiences>
+      <required-claims>
+        <claim name="roles" match="any">
+          <value>Api.Access</value>
+        </claim>
+      </required-claims>
+    </validate-azure-ad-token>
+
+    <!-- 2. Exchange the caller's identity for APIM's own managed-identity token when calling the
+            backend. The backend App Service is reachable only through the Private Endpoint and only
+            trusts tokens issued to APIM's managed identity (see Program.cs ApimManagedIdentityRequirement). -->
+    <authentication-managed-identity resource="api://1efe159c-bcc2-4797-8d33-84fb2ad8c069"
+        output-token-variable-name="apim-backend-token" ignore-error="false" />
+    <set-header name="Authorization" exists-action="override">
+      <value>@("Bearer " + (string)context.Variables["apim-backend-token"])</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
