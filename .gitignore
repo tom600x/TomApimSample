@@ -76,3 +76,4 @@ ApimSample.MvcClient/Properties/PublishProfiles/
 ApimSample.ApimSecuredApi/Properties/PublishProfiles/
 ApimSample.MvcClient/appsettings.Development.json
 README.md
+/ApimSample.Api/publish
