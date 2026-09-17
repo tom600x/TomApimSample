@@ -112,34 +112,8 @@ registrations/roles/assignments by name and skips creating duplicates.
 If your organization requires every step to be performed by hand through the Azure Portal
 (no CLI/IaC), follow [`../docs/manual-azure-setup.md`](../docs/manual-azure-setup.md) instead.
 
-## Validation notes (SKU cost and API versions)
+## SKUs, API versions, and Entra ID resources
 
-This template was re-validated against current Microsoft Learn guidance and live Azure Resource
-Manager provider metadata:
-
-- **SKU choices are already the cheapest that meet the hard requirements** — no cheaper SKU exists
-  that still satisfies the architecture:
-  - **APIM `Developer`**: per the "API Management feature-based comparison" and "Use a virtual
-    network with Azure API Management" docs, classic VNet injection (required so APIM can sit
-    inside the VNet and reach the Private-Endpoint-only backend) is supported **only** by
-    Developer and Premium. Basic, Basic v2, Standard, and Standard v2 do not support this pattern.
-    Developer is therefore the cheapest option; use `Premium` only when you need production SLA
-    and zone redundancy.
-  - **App Service Plan `B1`**: per the "App Service Private Endpoint overview" doc, Private
-    Endpoints are supported only on Basic, Standard, PremiumV2/V3/V4, IsolatedV2, and Functions
-    Premium plans — Free, Shared, and Consumption are not supported. B1 is the cheapest Basic-tier
-    SKU and therefore the cheapest that satisfies "public access disabled, reachable only via
-    Private Endpoint."
-- **API versions were bumped to current, non-preview stable releases** (verified via
-  `az provider show` and the Microsoft Learn ARM template reference pages, avoiding
-  bleeding-edge/preview versions):
-  - `Microsoft.ApiManagement/service` (+ `apis`, `apis/policies`, `products`, `products/apis`):
-    `2024-05-01`
-  - `Microsoft.Network/virtualNetworks`, `networkSecurityGroups`, `privateEndpoints`,
-    `privateEndpoints/privateDnsZoneGroups`: `2024-05-01`
-  - `Microsoft.Network/privateDnsZones` (+ `virtualNetworkLinks`): `2024-06-01`
-  - `Microsoft.Web/serverfarms`, `Microsoft.Web/sites`: `2024-11-01`
-- **Resources Bicep/ARM cannot create**: Entra ID app registrations, app roles, and app-role
-  assignments (`appRoleAssignedTo`) are Microsoft Graph objects, not ARM resources, so they can't
-  be expressed in Bicep. `entra-setup.ps1` handles these via `az ad` / `az rest` Graph calls and is
-  the required companion to `main.bicep` for a complete deployment.
+For the reasoning behind the SKU choices (Developer APIM, B1 App Service Plan) and why Entra ID
+app registrations/roles/assignments can't be expressed in Bicep, see
+[`../docs/security-architecture.md`](../docs/security-architecture.md#choosing-skus).
