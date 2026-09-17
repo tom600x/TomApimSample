@@ -1,0 +1,54 @@
+<!--
+  Template inbound policy applied to the APIM API created by infra/modules/apimApi.bicep.
+
+  Tokens replaced at deploy time (see main.bicep):
+    __TENANT_ID__           -> Entra tenant ID
+    __API_APP_ID_URI__      -> api://<api-app-registration-client-id>
+    __API_CLIENT_ID__       -> bare API app registration client ID (v2 token audience)
+    __SWAGGER_CLIENT_ID__   -> client application (Swagger/UI) allowed to call this API
+    __REQUIRED_APP_ROLE__   -> app role value required in the caller's token (e.g. Api.Access)
+
+  Behavior:
+    1. validate-azure-ad-token: validates issuer, audience, tenant, signature, and the required
+       app role claim on the caller's token before allowing the request into APIM.
+    2. authentication-managed-identity: discards the caller's token and replaces it with a fresh
+       token issued to APIM's own system-assigned managed identity, scoped to the backend API.
+       The backend App Service is reachable only via Private Endpoint and only trusts tokens
+       issued to APIM's managed identity (see ApimSample.Api Program.cs / ApimManagedIdentityRequirement).
+-->
+<policies>
+  <inbound>
+    <base />
+    <validate-azure-ad-token tenant-id="__TENANT_ID__" header-name="Authorization" failed-validation-httpcode="401"
+        failed-validation-error-message="Unauthorized: invalid or missing Entra ID token.">
+      <client-application-ids>
+        <application-id>__SWAGGER_CLIENT_ID__</application-id>
+      </client-application-ids>
+      <audiences>
+        <!-- v1 tokens carry the Application ID URI, v2 tokens carry the bare client id. Accept both. -->
+        <audience>__API_APP_ID_URI__</audience>
+        <audience>__API_CLIENT_ID__</audience>
+      </audiences>
+      <required-claims>
+        <claim name="roles" match="any">
+          <value>__REQUIRED_APP_ROLE__</value>
+        </claim>
+      </required-claims>
+    </validate-azure-ad-token>
+
+    <authentication-managed-identity resource="__API_APP_ID_URI__"
+        output-token-variable-name="apim-backend-token" ignore-error="false" />
+    <set-header name="Authorization" exists-action="override">
+      <value>@("Bearer " + (string)context.Variables["apim-backend-token"])</value>
+    </set-header>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

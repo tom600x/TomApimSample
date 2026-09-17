@@ -22,6 +22,10 @@ ASP.NET Core API                public access disabled; trusts only APIM's ident
 > **New here?** Read [Why this pattern](#why-this-pattern) then [How a request flows](#how-a-request-flows) then
 > [Implementing it yourself](#implementing-it-yourself).
 >
+> **Want it deployed automatically?** See **[infra/README.md](infra/README.md)** - Bicep templates plus
+> interactive PowerShell scripts (`deploy.ps1` / `entra-setup.ps1`) that provision the entire architecture,
+> prompting for each resource name with a sensible default.
+>
 > **Need to build the Azure resources by hand?** See the
 > **[Manual Azure Setup Guide](docs/manual-azure-setup.md)** - click-by-click portal instructions with no CLI or
 > IaC, written for cloud teams that require manual, reviewable changes.

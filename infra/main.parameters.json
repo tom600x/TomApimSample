@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "centralus" },
+    "vnetName": { "value": "vnet-apimsample" },
+    "vnetAddressPrefix": { "value": "10.10.0.0/16" },
+    "apimSubnetName": { "value": "snet-apim" },
+    "apimSubnetPrefix": { "value": "10.10.1.0/24" },
+    "privateEndpointSubnetName": { "value": "snet-privateendpoints" },
+    "privateEndpointSubnetPrefix": { "value": "10.10.2.0/24" },
+    "nsgName": { "value": "nsg-apim" },
+    "appServicePlanName": { "value": "apitest-asp" },
+    "appServicePlanSku": { "value": "B1" },
+    "webAppName": { "value": "apittest" },
+    "netFrameworkVersion": { "value": "v10.0" },
+    "apimName": { "value": "tomapim" },
+    "apimPublisherEmail": { "value": "admin@contoso.com" },
+    "apimPublisherName": { "value": "Contoso IT" },
+    "apimSkuName": { "value": "Developer" },
+    "apimSkuCapacity": { "value": 1 },
+    "apiId": { "value": "apimsample-api" },
+    "apiDisplayName": { "value": "ApimSample API" },
+    "apiPath": { "value": "apimsample" },
+    "productId": { "value": "unlimited" },
+    "apiAppClientId": { "value": "REPLACE-WITH-API-APP-REGISTRATION-CLIENT-ID" },
+    "swaggerClientAppId": { "value": "REPLACE-WITH-SWAGGER-APP-REGISTRATION-CLIENT-ID" },
+    "requiredAppRole": { "value": "Api.Access" },
+    "enforceManagedIdentityTrust": { "value": true }
+  }
+}
