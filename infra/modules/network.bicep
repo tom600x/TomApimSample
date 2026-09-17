@@ -34,7 +34,7 @@ param privateEndpointSubnetName string
 @description('Address prefix for the Private Endpoint subnet, e.g. 10.10.2.0/24.')
 param privateEndpointSubnetPrefix string
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
+resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: nsgName
   location: location
   properties: {
@@ -82,7 +82,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: vnetName
   location: location
   properties: {

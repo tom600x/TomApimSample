@@ -10,7 +10,12 @@ param location string
 @description('Name of the App Service Plan.')
 param appServicePlanName string
 
-@description('App Service Plan SKU. Must be B1 or higher to support Private Endpoints.')
+// Cheapest-SKU validation (Microsoft Learn, "App Service Private Endpoint overview", checked against
+// current docs): Private Endpoints are supported only on Basic, Standard, PremiumV2/V3/V4, IsolatedV2
+// and Functions Premium plans. Free, Shared, and Consumption plans are NOT supported. B1 (Basic, 1 core)
+// is therefore the cheapest SKU that satisfies the "public access disabled, reachable only via Private
+// Endpoint" requirement -- do not downgrade below B1.
+@description('App Service Plan SKU. B1 is the cheapest tier that supports Private Endpoints.')
 @allowed([
   'B1'
   'B2'
@@ -54,7 +59,7 @@ param enforceManagedIdentityTrust bool = true
 @description('Origins allowed to call this API directly (normally only the APIM gateway hostname).')
 param allowedOrigins array
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' = {
   name: appServicePlanName
   location: location
   sku: {
@@ -65,7 +70,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+resource webApp 'Microsoft.Web/sites@2024-11-01' = {
   name: webAppName
   location: location
   properties: {

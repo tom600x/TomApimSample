@@ -16,7 +16,14 @@ param publisherEmail string
 @description('Organization name shown to API consumers.')
 param publisherName string
 
-@description('APIM SKU. Developer is for non-production; use Premium for production with VNet + zone redundancy.')
+// Cheapest-SKU validation (Microsoft Learn, "Use a virtual network with Azure API Management" /
+// "API Management feature-based comparison", checked against current docs): classic VNet injection
+// ("Deploy (inject) service in virtual network", required so APIM can sit in the VNet and reach the
+// Private-Endpoint-only backend) is supported ONLY on Developer and Premium. Basic, Basic v2, Standard,
+// Standard v2, and Premium v2 do NOT support this pattern (Standard v2/Premium v2 only support outbound-only
+// VNet integration, which does not meet this architecture's inbound VNet-injection requirement). Developer is
+// therefore the cheapest SKU that satisfies the requirement -- use Premium only for production SLA/zone-redundancy.
+@description('APIM SKU. Developer is the cheapest tier that supports VNet injection (External mode); use Premium for production SLA/zone redundancy.')
 @allowed([
   'Developer'
   'Premium'
@@ -29,7 +36,7 @@ param skuCapacity int = 1
 @description('Resource ID of the subnet APIM is injected into (External VNet mode).')
 param apimSubnetId string
 
-resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
+resource apim 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
   sku: {

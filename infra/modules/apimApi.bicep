@@ -23,11 +23,11 @@ param productId string = 'unlimited'
 @description('Raw policy XML applied to this API (inbound validate-azure-ad-token + authentication-managed-identity).')
 param policyXml string
 
-resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' existing = {
+resource apim 'Microsoft.ApiManagement/service@2024-05-01' existing = {
   name: apimName
 }
 
-resource api 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
+resource api 'Microsoft.ApiManagement/service/apis@2024-05-01' = {
   parent: apim
   name: apiId
   properties: {
@@ -41,7 +41,7 @@ resource api 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
   }
 }
 
-resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-05-01-preview' = {
+resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2024-05-01' = {
   parent: api
   name: 'policy'
   properties: {
@@ -50,12 +50,12 @@ resource apiPolicy 'Microsoft.ApiManagement/service/apis/policies@2023-05-01-pre
   }
 }
 
-resource product 'Microsoft.ApiManagement/service/products@2023-05-01-preview' existing = {
+resource product 'Microsoft.ApiManagement/service/products@2024-05-01' existing = {
   parent: apim
   name: productId
 }
 
-resource productApiLink 'Microsoft.ApiManagement/service/products/apis@2023-05-01-preview' = {
+resource productApiLink 'Microsoft.ApiManagement/service/products/apis@2024-05-01' = {
   parent: product
   name: apiId
   dependsOn: [
