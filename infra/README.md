@@ -72,6 +72,20 @@ paste the `apimManagedIdentityPrincipalId` value from the deploy output when pro
 # ... when asked for the APIM managed identity object ID, paste the value from deploy.ps1's output
 ```
 
+Alternatively, assign only the existing app role without running the broader Entra setup:
+
+```powershell
+./assign-app-role.ps1 `
+  -PrincipalId <apim-managed-identity-object-id> `
+  -ResourceId <api-enterprise-application-object-id> `
+  -AppRoleId <api-access-app-role-id> `
+  -TenantId <tenant-id>
+```
+
+The script validates that the role exists, is enabled, and permits `Application` principals. It
+is idempotent and supports `-WhatIf`. App-role assignment changes can take several hours to appear
+in managed-identity tokens because those tokens are cached.
+
 ### 4. Deploy application code
 
 `main.bicep` provisions the App Service but does not deploy code to it. Publish

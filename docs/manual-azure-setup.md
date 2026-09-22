@@ -146,17 +146,28 @@ token, and has no redirect URIs and no client secret.
 > tokens `aud` is the **bare Application ID GUID**. Your APIM policy and your API must accept **both** forms, or
 > every call fails with `401`. Part 5 and Part 7 handle this.
 
-### Step 1.5 — Require explicit assignment
+### Step 1.5 — Configure the API enterprise application
 
-This is what turns the app role from documentation into enforcement. Without it, any principal in the tenant can
-get a token for your API.
+Configure the service principal so the API can issue tokens only to explicitly assigned callers
+without appearing as a launchable application in users' My Apps portal.
 
 1. Go to **Microsoft Entra ID → Enterprise applications**.
 2. Change the **Application type** filter to **All applications** and search for `Contoso.Api`.
 3. Open it and copy the **Object ID** into your value table — you will need it for every app role assignment.
 4. Select **Properties**.
-5. Set **Assignment required?** to **Yes**.
+5. Configure these properties:
+
+   | Property | Value | Reason |
+   |----------|-------|--------|
+   | **Enabled for users to sign-in?** | **Yes** | Enables token issuance. Setting this to **No** also prevents service principals, including APIM's managed identity, from accessing the API with application permissions. |
+   | **Assignment required?** | **Yes** | Requires users, client service principals, and APIM's managed identity to be explicitly assigned before they can obtain an access token for the API. |
+   | **Visible to users?** | **No** | Keeps this backend API out of My Apps and the Microsoft 365 launcher. This setting affects visibility only, not token issuance or the `roles` claim. |
+
 6. Select **Save**.
+
+> **These settings do not assign `Api.Access`.** Complete Part 3 for every authorized caller.
+> Without the application app-role assignment, APIM can receive a token with no `roles` claim,
+> which the gateway or backend rejects.
 
 ### Step 1.6 — Remove any self-referencing permission
 
@@ -269,16 +280,45 @@ groups** now lists the application.
 
 ### Step 3.3 — Assign the role to APIM's managed identity
 
-Do this **after** Part 4, Step 2 (once the identity exists). It uses the exact same Graph Explorer procedure as
-Step 3.2, with `principalId` set to the **APIM managed identity Object ID**:
+Do this **after** Part 4, Step 2, because the APIM managed identity must exist first. Collect these
+values:
 
-```json
-{
-  "principalId": "<apim-managed-identity-object-id>",
-  "resourceId":  "<contoso-api-enterprise-app-object-id>",
-  "appRoleId":   "<api-access-app-role-id>"
-}
+| Parameter | Value |
+|-----------|-------|
+| `PrincipalId` | APIM system-assigned managed identity **Object (principal) ID** |
+| `ResourceId` | Contoso.Api **enterprise application Object ID** |
+| `AppRoleId` | The GUID ID of the `Api.Access` app role |
+| `TenantId` | Entra tenant ID |
+
+From the repository's `infra` directory, first validate the operation without changing Entra ID:
+
+```powershell
+./assign-app-role.ps1 `
+  -PrincipalId <apim-managed-identity-object-id> `
+  -ResourceId <contoso-api-enterprise-app-object-id> `
+  -AppRoleId <api-access-app-role-id> `
+  -TenantId <tenant-id> `
+  -WhatIf
 ```
+
+Review the principal, resource, and role displayed by the script. If they are correct, run the
+same command without `-WhatIf`:
+
+```powershell
+./assign-app-role.ps1 `
+  -PrincipalId <apim-managed-identity-object-id> `
+  -ResourceId <contoso-api-enterprise-app-object-id> `
+  -AppRoleId <api-access-app-role-id> `
+  -TenantId <tenant-id>
+```
+
+The script validates that the role exists, is enabled, and allows `Application` principals. It is
+idempotent, so an existing assignment is reported and left unchanged. Use the API's **enterprise
+application Object ID** for `ResourceId`, not its application/client ID.
+
+Verify the result under **Enterprise applications → Contoso.Api → Users and groups**. The APIM
+managed identity should be listed with the `Api.Access` role. Because managed-identity tokens are
+cached, a new assignment might not appear in the token immediately.
 
 ---
 
